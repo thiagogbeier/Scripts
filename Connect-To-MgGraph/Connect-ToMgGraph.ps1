@@ -84,74 +84,68 @@ v1.0.1 - Added prerequisites check, added devicecode and interactive logon param
     Date: September 11, 2024
 #>
 
-
 param (
     [string]$AppId,
     [string]$TenantId,
     [string]$AppSecret,
     [string]$CertificateThumbprint,
     [string]$Tenant,
-    [switch]$scopesonly,    # If true, execute the scopes only block
-    [switch]$entraapp,  # If true, execute the entra app block
-    [switch]$usessl,    # If true, execute the SSL certificate block
-    [switch]$interactive,    # If true, execute the interactive block
+    [switch]$scopesonly, # If true, execute the scopes only block
+    [switch]$entraapp, # If true, execute the entra app block
+    [switch]$usessl, # If true, execute the SSL certificate block
+    [switch]$interactive, # If true, execute the interactive block
     [switch]$devicecode    # If true, execute the device code block
 )
 
 #region PowerShell modules and NuGet
-
 function Install-GraphModules {
-    #region PowerShell modules and NuGet
-
-    # Get NuGet
-    $provider = Get-PackageProvider NuGet -ErrorAction Ignore
-    if (-not $provider) {
-        Write-Host "Installing provider NuGet"
-        Find-PackageProvider -Name NuGet -ForceBootstrap -IncludeDependencies
+    #Get NuGet
+    if (-not (Get-PackageProvider NuGet -ListAvailable -ErrorAction SilentlyContinue)) {
+        try {
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force:$true | Out-Null
+            Write-Host "Installed PackageProvider NuGet"
+        }
+        catch {
+            Write-Warning "Error installing provider NuGet, exiting..."
+            return
+        }
     }
 
-    # Get Graph Authentication module (and dependencies)
-    $module = Import-Module microsoft.graph.authentication -PassThru -ErrorAction Ignore
-    if (-not $module) {
-        Write-Host "Installing module microsoft.graph.authentication"
-        Install-Module microsoft.graph.authentication -Force -ErrorAction Ignore -MaximumVersion 2.9.1
+    #Get Graph Authentication modules (and dependencies)
+    $modules = @{
+        'Microsoft Graph Authentication' = 'Microsoft.Graph.Authentication'
+        'MS Graph Groups'                = 'Microsoft.Graph.Groups'
+        'MS Graph Identity Management'   = 'Microsoft.Graph.Identity.DirectoryManagement'
+        'MS Graph Users'                 = 'Microsoft.Graph.Users'
     }
 
-    $module2 = Import-Module Microsoft.Graph.Identity.DirectoryManagement -PassThru -ErrorAction Ignore
-    if (-not $module2) {
-        Write-Host "Installing module MS Graph Identity Management"
-        Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force -ErrorAction Ignore
+    #Set PSGallery as Trusted
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+    foreach ($module in $modules.GetEnumerator()) {
+        if (Get-Module -Name $module.value -ListAvailable -ErrorAction SilentlyContinue) {
+            Import-Module -Name $module.value
+        }
+        else {
+            try {
+                Install-Module $module.Value -ErrorAction Stop
+                Write-Host ("Installing and importing PowerShell module {0}" -f $module.value) -ErrorAction Stop
+                Import-Module -Name $module.value -ErrorAction Stop
+            }
+            catch {
+                Write-Warning ("Error Installing or importing Powershell module {0}, exiting..." -f $module.value)
+                return
+            }
+        }
     }
-    Import-Module microsoft.graph.Identity.DirectoryManagement -Scope Global
+}     
+#endregion
 
-    $module3 = Import-Module Microsoft.Graph.Groups -PassThru -ErrorAction Ignore
-    if (-not $module3) {
-        Write-Host "Installing module MS Graph Groups"
-        Install-Module Microsoft.Graph.Groups -Force -ErrorAction Ignore
-    }
-    Import-Module Microsoft.Graph.Groups -Scope Global
-
-    $module4 = Import-Module Microsoft.Graph.Users -PassThru -ErrorAction Ignore
-    if (-not $module4) {
-        Write-Host "Installing module MS Graph Users"
-        Install-Module Microsoft.Graph.Users -Force -ErrorAction Ignore
-        Import-Module Microsoft.Graph.Users -Scope Global
-    }
-
-    #endregion
-}
-
-       
-
-#engregion
-
-# If -entraapp is provided, enforce that AppId, AppSecret, and Tenant are required
+#If -entraapp is provided, enforce that AppId, AppSecret, and Tenant are required
 if ($entraapp) {
-
-# Call the function
-Write-Host "Checking NuGet and PowerShell dependencies `n" -foregroundcolor cyan
-Install-GraphModules
-
+    #Call the function
+    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    Install-GraphModules
 
     if (-not $AppId) {
         throw "Error: The -AppId parameter is required when using -entraapp."
@@ -164,14 +158,11 @@ Install-GraphModules
     }
 }
 
-
-# If -entraapp is provided, enforce that AppId, AppSecret, and Tenant are required
+#If -entraapp is provided, enforce that AppId, AppSecret, and Tenant are required
 if ($usessl) {
-
-# Call the function
-Write-Host "Checking NuGet and PowerShell dependencies `n" -foregroundcolor cyan
-Install-GraphModules
-
+    #Call the function
+    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    Install-GraphModules
 
     if (-not $AppId) {
         throw "Error: The -AppId parameter is required when using -usessl."
@@ -184,13 +175,11 @@ Install-GraphModules
     }
 }
 
-# Check for -scopesonly parameter
+#Check for -scopesonly parameter
 if ($scopesonly) {
-
-# Call the function
-Write-Host "Checking NuGet and PowerShell dependencies `n" -foregroundcolor cyan
-Install-GraphModules
-
+    #Call the function
+    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    Install-GraphModules
 
     #region scopesReadOnly ask for authentication
     $scopesReadOnly = @(
@@ -198,116 +187,136 @@ Install-GraphModules
         "Directory.Read.All"
         "Group.Read.All"
     )
- 
-    Import-Module Microsoft.Graph.Authentication
-    Connect-MgGraph -Scopes $scopesReadOnly
-    Write-Host "This session current permissions `n" -foregroundcolor cyan
-	Get-MgContext | Select-Object -ExpandProperty Scopes
-	write-host "`n"
-    #(Get-MgContext).scopes
-	Write-Host "Please run Disconnect-mggraph to disconnect `n" -foregroundcolor darkyellow
-    #disconnect-MgGraph
+    
+    try {
+        Connect-MgGraph -Scopes $scopesReadOnly -ErrorAction Stop
+        Write-Host "This session current permissions `n" -ForegroundColor cyan
+        Get-MgContext | Select-Object -ExpandProperty Scopes -ErrorAction Stop
+        Write-Host "`n"
+        Write-Host "Please run Disconnect-MgGraph to disconnect `n" -ForegroundColor darkyellow
+    }
+    catch {
+        Write-Warning "Error connecting to Microsoft Graph or user aborted, exiting..."
+        return
+    }
     #endregion
 }
 
 # Check for -entraapp parameter
 if ($entraapp) {
+    #Call the function
+    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    Install-GraphModules
 
-# Call the function
-Write-Host "Checking NuGet and PowerShell dependencies `n" -foregroundcolor cyan
-Install-GraphModules
+    #region app secret
+    #Populate with the App Registration details and Tenant ID to validate manually
+    #$appid = ''
+    #$tenantid = ''
+    #$appsecret = ''
+    $version = (Get-Module microsoft.graph.authentication | Select-Object -ExpandProperty Version).Major
+    $body = @{
+        grant_type    = "client_credentials"
+        client_id     = $AppId
+        client_secret = $AppSecret
+        scope         = "https://graph.microsoft.com/.default"
+    }
 
-	#region app secret
-	# Populate with the App Registration details and Tenant ID to validate manually
-	#$appid = ''
-	#$tenantid = ''
-	#$appsecret = ''
-	Import-Module Microsoft.Graph.Authentication
-	$version = (Get-Module microsoft.graph.authentication | Select-Object -ExpandProperty Version).Major
-	$body = @{
-	grant_type    = "client_credentials"
-	client_id     = $AppId
-	client_secret = $AppSecret
-	scope         = "https://graph.microsoft.com/.default"
-	}
+    $response = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token" -Body $body
+    $accessToken = $response.access_token
+    if ($version -eq 2) {
+        Write-Host "Version 2 module detected"
+        $accesstokenfinal = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
+    }
+    else {
+        Write-Host "Version 1 Module Detected"
+        Select-MgProfile -Name Beta
+        $accesstokenfinal = $accessToken
+    }
 
-	$response = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token" -Body $body
-	$accessToken = $response.access_token
-	if ($version -eq 2) {
-	Write-Host "Version 2 module detected"
-	$accesstokenfinal = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
-	}
-	else {
-	Write-Host "Version 1 Module Detected"
-	Select-MgProfile -Name Beta
-	$accesstokenfinal = $accessToken
-	}
-	$graph = Connect-MgGraph -AccessToken $accesstokenfinal 
-	Write-Host "Connected to tenant $Tenant using app-based authentication"
+    try {
+        Connect-MgGraph -AccessToken $accesstokenfinal -ErrorAction Stop
+        Write-Host "Connected to tenant $Tenant using app-based authentication"
+    }
+    catch {
+        Write-Warning "Error connecting to tenant $Tenant using app-based authentication, exiting..."
+        return
+    }
 
-	#Get-MgContext
-	Write-Host "This session current permissions `n" -foregroundcolor cyan
-	Get-MgContext | Select-Object -ExpandProperty Scopes
-	write-host "`n"
-	Write-Host "Please run Disconnect-mggraph to disconnect `n" -foregroundcolor darkyellow
-	#disconnect-MgGraph
-	#endregion
-}
-
-# Check for -usessl parameter
-if ($usessl) {
-
-# Call the function
-Write-Host "Checking NuGet and PowerShell dependencies `n" -foregroundcolor cyan
-Install-GraphModules
-
-
-    #region ssl certificate authentication
-    Connect-MgGraph -ClientId $AppId -TenantId $TenantId -CertificateThumbprint $CertificateThumbprint
     #Get-MgContext
-    Write-Host "This session current permissions `n" -foregroundcolor cyan
-	Get-MgContext | Select-Object -ExpandProperty Scopes
-	write-host "`n"
-    #(Get-MgContext).scopes
-	Write-Host "Please run Disconnect-mggraph to disconnect `n" -foregroundcolor darkyellow
-    #disconnect-MgGraph
+    Write-Host "This session current permissions `n" -ForegroundColor cyan
+    Get-MgContext | Select-Object -ExpandProperty Scopes
+    Write-Host "`n"
+    Write-Host "Please run Disconnect-MgGraph to disconnect `n" -ForegroundColor darkyellow
+    #Disconnect-MgGraph
     #endregion
 }
 
+#Check for -usessl parameter
+if ($usessl) {
+    #Call the function
+    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    Install-GraphModules
 
-# Check for -interactive parameter
+    try {
+        #region ssl certificate authentication
+        Connect-MgGraph -ClientId $AppId -TenantId $TenantId -CertificateThumbprint $CertificateThumbprint -ErrorAction Stop
+        #Get-MgContext
+        Write-Host "This session current permissions `n" -ForegroundColor cyan
+        Get-MgContext | Select-Object -ExpandProperty Scopes -ErrorAction Stop
+        Write-Host "`n"
+        #(Get-MgContext).scopes
+        Write-Host "Please run Disconnect-MgGraph to disconnect `n" -ForegroundColor darkyellow
+        #Disconnect-MgGraph
+    }
+    catch {
+        Write-Warning "Error connecting to Microsoft Graph or user aborted, exiting..."
+        return
+    } 
+    #endregion
+}
+
+#Check for -interactive parameter
 if ($interactive) {
-
-# Call the function
-Write-Host "Checking NuGet and PowerShell dependencies `n" -foregroundcolor cyan
-Install-GraphModules
-
-    Connect-MgGraph
-    Write-Host "This session current permissions `n" -foregroundcolor cyan
-	Get-MgContext | Select-Object -ExpandProperty Scopes
-	write-host "`n"
-    #(Get-MgContext).scopes
-	Write-Host "Please run Disconnect-mggraph to disconnect `n" -foregroundcolor darkyellow
-    }
-
-
-# Check for -devicecode parameter
-if ($devicecode) {
-
-# Call the function
-Write-Host "Checking NuGet and PowerShell dependencies `n" -foregroundcolor cyan
-Install-GraphModules
-
-
-    #Start Browser
-    start-process https://microsoft.com/devicelogin
-
-    #Wait for the user to enter the code provided on Screen to authenticate on opened Browser (Default)
-    Connect-MgGraph -UseDeviceCode
+    #Call the function
+    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    Install-GraphModules
     
-    Write-Host "This session current permissions `n" -foregroundcolor cyan
-	Get-MgContext | Select-Object -ExpandProperty Scopes
-	write-host "`n"
-    #(Get-MgContext).scopes
-	Write-Host "Please run Disconnect-mggraph to disconnect `n" -foregroundcolor darkyellow
+    try {
+        Connect-MgGraph -ErrorAction Stop
+        Write-Host "This session current permissions `n" -ForegroundColor cyan
+        Get-MgContext | Select-Object -ExpandProperty Scopes -ErrorAction Stop
+        Write-Host "`n"
+        #(Get-MgContext).scopes
+        Write-Host "Please run Disconnect-MgGraph to disconnect `n" -ForegroundColor darkyellow
     }
+    catch {
+        Write-Warning "Error connecting to Microsoft Graph or user aborted, exiting..."
+        return
+    }
+}
+
+#Check for -devicecode parameter
+if ($devicecode) {
+    #Call the function
+    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    Install-GraphModules
+
+    try {
+        #Start Browser
+        Start-Process https://microsoft.com/devicelogin -ErrorAction Stop
+
+        #Wait for the user to enter the code provided on Screen to authenticate on opened Browser (Default)
+        Connect-MgGraph -UseDeviceCode -ErrorAction Stop
+    
+        Write-Host "This session current permissions `n" -ForegroundColor cyan
+        Get-MgContext | Select-Object -ExpandProperty Scopes -ErrorAction Stop
+        Write-Host "`n"
+
+        #(Get-MgContext).scopes
+        Write-Host "Please run Disconnect-MgGraph to disconnect `n" -ForegroundColor darkyellow
+    }
+    catch {
+        Write-Warning "Error connecting to Microsoft Graph or user aborted, exiting..."
+        return
+    }
+}
