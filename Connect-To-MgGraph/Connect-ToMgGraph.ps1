@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.1
+.VERSION 1.0.2
 .GUID
 .AUTHOR Thiago Beier forked authentication method from Andrew S Taylor Microsoft MVP
 .COMPANYNAME
@@ -13,6 +13,7 @@
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
 v1.0.1 - Added prerequisites check, added devicecode and interactive logon parameters
+v1.0.2 - commented out lines 148, 149 to avoid calling Install-GraphModules function twice 
 #>
 
 <#
@@ -144,8 +145,8 @@ function Install-GraphModules {
 #If -entraapp is provided, enforce that AppId, AppSecret, and Tenant are required
 if ($entraapp) {
     #Call the function
-    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
-    Install-GraphModules
+    #Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    #Install-GraphModules
 
     if (-not $AppId) {
         throw "Error: The -AppId parameter is required when using -entraapp."
