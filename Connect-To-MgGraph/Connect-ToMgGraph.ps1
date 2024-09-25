@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.2
+.VERSION 1.0.3
 .GUID
 .AUTHOR Thiago Beier forked authentication method from Andrew S Taylor Microsoft MVP
 .COMPANYNAME
@@ -13,7 +13,8 @@
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
 v1.0.1 - Added prerequisites check, added devicecode and interactive logon parameters
-v1.0.2 - commented out lines 148, 149 to avoid calling Install-GraphModules function twice 
+v1.0.2 - commented out lines 148, 149 to avoid calling Install-GraphModules function twice under entraapp
+v1.0.3 - commented out other lines under usessl and avoid calling Install-GraphModules function twice, addeed -NoWelcome to Connect-MgGraph commands		
 #>
 
 <#
@@ -162,8 +163,8 @@ if ($entraapp) {
 #If -entraapp is provided, enforce that AppId, AppSecret, and Tenant are required
 if ($usessl) {
     #Call the function
-    Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
-    Install-GraphModules
+    #Write-Host "Checking NuGet and PowerShell dependencies `n" -ForegroundColor cyan
+    #Install-GraphModules
 
     if (-not $AppId) {
         throw "Error: The -AppId parameter is required when using -usessl."
@@ -184,13 +185,13 @@ if ($scopesonly) {
 
     #region scopesReadOnly ask for authentication
     $scopesReadOnly = @(
-        "Chat.ReadWrite.All"
+        "User.Read.All"
         "Directory.Read.All"
         "Group.Read.All"
     )
     
     try {
-        Connect-MgGraph -Scopes $scopesReadOnly -ErrorAction Stop
+        Connect-MgGraph -Scopes $scopesReadOnly -NoWelcome -ErrorAction Stop
         Write-Host "This session current permissions `n" -ForegroundColor cyan
         Get-MgContext | Select-Object -ExpandProperty Scopes -ErrorAction Stop
         Write-Host "`n"
@@ -235,7 +236,7 @@ if ($entraapp) {
     }
 
     try {
-        Connect-MgGraph -AccessToken $accesstokenfinal -ErrorAction Stop
+        Connect-MgGraph -AccessToken $accesstokenfinal -NoWelcome -ErrorAction Stop
         Write-Host "Connected to tenant $Tenant using app-based authentication"
     }
     catch {
@@ -260,7 +261,7 @@ if ($usessl) {
 
     try {
         #region ssl certificate authentication
-        Connect-MgGraph -ClientId $AppId -TenantId $TenantId -CertificateThumbprint $CertificateThumbprint -ErrorAction Stop
+        Connect-MgGraph -ClientId $AppId -TenantId $TenantId -CertificateThumbprint $CertificateThumbprint -NoWelcome -ErrorAction Stop
         #Get-MgContext
         Write-Host "This session current permissions `n" -ForegroundColor cyan
         Get-MgContext | Select-Object -ExpandProperty Scopes -ErrorAction Stop
@@ -283,7 +284,7 @@ if ($interactive) {
     Install-GraphModules
     
     try {
-        Connect-MgGraph -ErrorAction Stop
+        Connect-MgGraph -NoWelcome -ErrorAction Stop
         Write-Host "This session current permissions `n" -ForegroundColor cyan
         Get-MgContext | Select-Object -ExpandProperty Scopes -ErrorAction Stop
         Write-Host "`n"
