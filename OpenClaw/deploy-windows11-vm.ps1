@@ -25,6 +25,30 @@ Prerequisites:
 - An active Azure subscription with permissions to create resources
 - PowerShell 5.1 or PowerShell 7+
 
+.PARAMETER ResourceGroup
+The name of the Azure resource group to create or use.
+Default: "openclaw-rg"
+
+.PARAMETER VMName
+The name of the Windows 11 VM. Must be 15 characters or fewer (Windows computer name limit).
+Default: "win11-oclaw"
+
+.PARAMETER Location
+The Azure region where the VM and resource group will be deployed.
+Default: "canadacentral"
+
+.PARAMETER AdminUsername
+The administrator username for the VM. Avoid reserved names like "admin" or "administrator".
+Default: "azureuser"
+
+.PARAMETER AdminPassword
+The administrator password for the VM. Must meet Azure password complexity requirements.
+Default: "P@ssw0rd1234!"
+
+.PARAMETER VMSize
+The Azure VM size (SKU) that determines CPU and memory allocation.
+Default: "Standard_B2s" (2 vCPUs, 4GB RAM)
+
 .PARAMETER WhatIf
 When specified, the script previews all commands without executing them.
 Use this to review the deployment plan before making any changes.
@@ -45,6 +69,10 @@ az login
 Logs in to Azure first, then deploys the VM with default configuration.
 
 .EXAMPLE
+.\deploy-windows11-vm.ps1 -ResourceGroup "myapp-rg" -VMName "myvm01" -Location "eastus" -VMSize "Standard_B4ms"
+Deploys the VM with custom resource group, VM name, location, and size.
+
+.EXAMPLE
 az account set --subscription "your-subscription-id"
 .\deploy-windows11-vm.ps1
 Sets a specific Azure subscription before deploying the VM.
@@ -58,7 +86,9 @@ Twitter: https://twitter.com/thiagobeier
 GitHub: https://github.com/thiagogbeier
 Created: 02/06/2026
 Updated: 02/06/2026
-Version: 1.0
+Version: 1.1
+OpenClaw Project: https://openclaw.ai/
+Source Post inspired this script: https://techcommunity.microsoft.com/blog/azuredevcommunityblog/complete-guide-to-deploying-openclaw-on-azure-windows-11-virtual-machine/4492001
 
 Default Configuration:
 - Resource Group: openclaw-rg
@@ -66,7 +96,7 @@ Default Configuration:
 - Location: canadacentral
 - VM Size: Standard_B2s (2 vCPUs, 4GB RAM)
 - Image: Windows 11 Pro 24H2
-- Admin User: thiago
+- Admin User: azureuser
 - Software: Chocolatey, Git, CMake, VS Build Tools, Node.js LTS, OpenClaw
 
 Post-Deployment:
@@ -75,6 +105,13 @@ Post-Deployment:
 - To resize the VM, see the commented section at the end of the script
 
 Change Log:
+v1.1 (02/06/2026):
+- Converted hardcoded configuration variables to script parameters with defaults
+- Added parameters: ResourceGroup, VMName, Location, AdminUsername, AdminPassword, VMSize
+- Added VMName validation (max 15 characters)
+- Added deployment configuration display before execution
+- Updated help documentation with parameter descriptions and examples
+
 v1.0 (02/06/2026):
 - Initial release
 - Automated VM provisioning with Windows 11 Pro 24H2
@@ -87,6 +124,25 @@ v1.0 (02/06/2026):
 # WhatIf Parameter - Set to $true to preview commands without executing
 # ============================================
 param(
+    [Parameter(Mandatory = $false)]
+    [string]$ResourceGroup = "openclaw-rg",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateLength(1, 15)]
+    [string]$VMName = "win11-oclaw",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Location = "canadacentral",
+
+    [Parameter(Mandatory = $false)]
+    [string]$AdminUsername = "azureuser",
+
+    [Parameter(Mandatory = $false)]
+    [string]$AdminPassword = "P@ssw0rd1234!",
+
+    [Parameter(Mandatory = $false)]
+    [string]$VMSize = "Standard_B2s",
+
     [switch]$WhatIf
 )
 
@@ -185,14 +241,23 @@ function Invoke-AzCommand {
 }
 
 # ============================================
-# Configuration Variables - Modify as needed
+# Display Configuration
 # ============================================
-$RESOURCE_GROUP = "openclaw-rg"
-$VM_NAME = "win11-oclaw"  # Max 15 chars for Windows computer name
-$LOCATION = "canadacentral"  # e.g., eastus, westus2
-$ADMIN_USERNAME = "thiago"
-$ADMIN_PASSWORD = "P@ssw0rd1234!"  # Use a strong password in production
-$VM_SIZE = "Standard_B2s"  # 4GB memory
+Write-Host "Deployment Configuration:" -ForegroundColor Cyan
+Write-Host "  Resource Group:  $ResourceGroup" -ForegroundColor White
+Write-Host "  VM Name:         $VMName" -ForegroundColor White
+Write-Host "  Location:        $Location" -ForegroundColor White
+Write-Host "  Admin Username:  $AdminUsername" -ForegroundColor White
+Write-Host "  VM Size:         $VMSize" -ForegroundColor White
+Write-Host ""
+
+# Map parameter names to variables used throughout the script
+$RESOURCE_GROUP = $ResourceGroup
+$VM_NAME = $VMName
+$LOCATION = $Location
+$ADMIN_USERNAME = $AdminUsername
+$ADMIN_PASSWORD = $AdminPassword
+$VM_SIZE = $VMSize
 
 # ============================================
 # Check if resource group exists, create if not
